@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #14110F;
+  color: #F3EEE6;
+  font-family: 'Inter', sans-serif;
+}
+
+::selection {
+  background-color: #C1934E;
+  color: #14110F;
+}

@@ -1,0 +1,61 @@
+// Corte Certo — Sistema de Agendamento
+// Modelagem: Usuário (cliente ou admin), Serviços oferecidos, Agendamentos
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CLIENT
+  ADMIN
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  role         Role          @default(CLIENT)
+  phone        String?
+  createdAt    DateTime      @default(now())
+  appointments Appointment[]
+}
+
+model Service {
+  id           String        @id @default(uuid())
+  name         String
+  description  String?
+  durationMin  Int           // duração do serviço em minutos, usada para calcular o fim do horário
+  priceCents   Int           // preço em centavos, evita erros de arredondamento com float
+  active       Boolean       @default(true)
+  appointments Appointment[]
+}
+
+model Appointment {
+  id        String            @id @default(uuid())
+  client    User              @relation(fields: [clientId], references: [id])
+  clientId  String
+  service   Service           @relation(fields: [serviceId], references: [id])
+  serviceId String
+  date      DateTime          @db.Date   // dia do agendamento
+  startTime String            // "HH:mm", guardado como string para simplificar comparação de slots
+  endTime   String            // calculado a partir de startTime + duração do serviço
+  status    AppointmentStatus @default(CONFIRMED)
+  notes     String?
+  createdAt DateTime          @default(now())
+
+  // Nenhum outro agendamento pode ocupar o mesmo dia + horário de início,
+  // reforça a regra de negócio no nível do banco além da validação na API.
+  @@unique([date, startTime])
+}

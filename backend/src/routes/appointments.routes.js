@@ -129,9 +129,11 @@ router.post('/', authenticate, async (req, res) => {
     throw err;
   }
 
-  // Notificação: e-mail sempre disparado; link de WhatsApp devolvido para o
-  // front-end oferecer um botão de envio (não bloqueia a resposta em caso de falha).
-  await sendAppointmentEmail({
+  // Envio de e-mail acontece em segundo plano, SEM bloquear a resposta ao
+  // cliente. Se ficássemos esperando o SMTP responder, uma conexão lenta ou
+  // travada faria o botão "Confirmando..." nunca terminar — a confirmação do
+  // agendamento (que já está salva no banco) não pode depender da notificação.
+  sendAppointmentEmail({
     to: appointment.client.email,
     clientName: appointment.client.name,
     serviceName: appointment.service.name,
@@ -139,7 +141,7 @@ router.post('/', authenticate, async (req, res) => {
     date: appointment.date,
     startTime: appointment.startTime,
     type: 'confirmed',
-  });
+  }).catch((err) => console.error('Falha ao enviar e-mail de confirmação:', err.message));
 
   const whatsappLink = buildWhatsAppLink({
     phone: appointment.client.phone,
@@ -174,7 +176,7 @@ router.patch('/:id/cancel', authenticate, async (req, res) => {
     data: { status: 'CANCELLED' },
   });
 
-  await sendAppointmentEmail({
+  sendAppointmentEmail({
     to: appointment.client.email,
     clientName: appointment.client.name,
     serviceName: appointment.service.name,
@@ -182,7 +184,7 @@ router.patch('/:id/cancel', authenticate, async (req, res) => {
     date: appointment.date,
     startTime: appointment.startTime,
     type: 'cancelled',
-  });
+  }).catch((err) => console.error('Falha ao enviar e-mail de cancelamento:', err.message));
 
   const whatsappLink = buildWhatsAppLink({
     phone: appointment.client.phone,

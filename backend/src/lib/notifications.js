@@ -1,23 +1,5 @@
 const nodemailer = require('nodemailer');
 
-/**
- * Serviço de notificação.
- *
- * E-mail: usa Nodemailer. Em desenvolvimento, sem credenciais configuradas,
- * cai automaticamente no transporte "jsonTransport", que não envia nada de
- * verdade — só loga o conteúdo no console. Isso permite testar o fluxo
- * completo sem precisar de uma conta SMTP. Em produção, basta preencher
- * SMTP_HOST / SMTP_USER / SMTP_PASS no .env que o Nodemailer passa a enviar
- * de verdade (Gmail, SendGrid, Resend, etc. todos funcionam via SMTP).
- *
- * WhatsApp: implementado via link "wa.me" com mensagem pré-preenchida.
- * É a abordagem padrão para pequenos negócios, já que a API oficial do
- * WhatsApp Business exige aprovação e conta comercial paga. O link é
- * devolvido para o front-end, que oferece um botão "Enviar confirmação
- * por WhatsApp" — o próprio dono ou o cliente clica e o app do WhatsApp
- * abre com a mensagem pronta.
- */
-
 function buildTransport() {
   if (process.env.SMTP_HOST) {
     return nodemailer.createTransport({
@@ -25,6 +7,12 @@ function buildTransport() {
       port: Number(process.env.SMTP_PORT) || 587,
       secure: false,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      // Timeouts de segurança: sem isso, se o provedor SMTP não responder
+      // (porta bloqueada pelo host, rede instável, etc.), a promise de envio
+      // fica pendurada para sempre e trava a requisição HTTP inteira.
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
     });
   }
   // Modo de desenvolvimento: não envia e-mail de verdade, só imprime no console.

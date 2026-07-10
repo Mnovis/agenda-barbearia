@@ -2,7 +2,9 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3333',
-  timeout: 15000, // evita spinner infinito na tela se o backend não responder
+  // 30s em vez de 15s: serviços gratuitos no Railway podem "dormir" após
+  // inatividade e levar um tempo para acordar na primeira requisição.
+  timeout: 30000,
 });
 
 api.interceptors.request.use((config) => {

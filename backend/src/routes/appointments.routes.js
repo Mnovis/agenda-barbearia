@@ -5,6 +5,19 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { checkConflict, generateAvailableSlots } = require('../utils/conflict');
 const { sendAppointmentEmail, buildWhatsAppLink } = require('../lib/notifications');
 
+// Nunca deixa um problema ao montar o link de WhatsApp (ex: telefone em formato
+// inesperado) derrubar uma resposta que já deveria ser um sucesso — essa etapa
+// é conveniência para o admin, não pode competir em importância com o dado
+// principal (o agendamento em si, que já está salvo no banco nesse ponto).
+function safeBuildWhatsAppLink(params) {
+  try {
+    return buildWhatsAppLink(params);
+  } catch (err) {
+    console.error('Falha ao montar link de WhatsApp:', err.message);
+    return null;
+  }
+}
+
 const router = express.Router();
 
 // GET /appointments/available-slots?date=2026-07-13&serviceId=xxx&professionalId=yyy
@@ -64,7 +77,7 @@ router.get('/', authenticate, authorize('ADMIN'), async (req, res) => {
   // sem precisar clicar em "cancelar" ou "confirmar" de novo para gerar o link.
   const withWhatsapp = appointments.map((appt) => ({
     ...appt,
-    whatsappLink: buildWhatsAppLink({
+    whatsappLink: safeBuildWhatsAppLink({
       phone: appt.client.phone,
       clientName: appt.client.name,
       serviceName: appt.service.name,
@@ -118,7 +131,13 @@ router.post('/', authenticate, async (req, res) => {
   try {
     appointment = await prisma.appointment.create({
       data: { clientId: req.user.id, serviceId, professionalId, date: new Date(date), startTime, endTime, notes },
-      include: { service: true, professional: true, client: true },
+      include: {
+        service: true,
+        professional: true,
+        // Nunca devolver o hash da senha para o navegador — select explícito
+        // em vez de include:true, que traria o objeto User inteiro.
+        client: { select: { id: true, name: true, email: true, phone: true } },
+      },
     });
   } catch (err) {
     // Proteção extra: duas requisições simultâneas passando pela checagem acima
@@ -143,7 +162,7 @@ router.post('/', authenticate, async (req, res) => {
     type: 'confirmed',
   }).catch((err) => console.error('Falha ao enviar e-mail de confirmação:', err.message));
 
-  const whatsappLink = buildWhatsAppLink({
+  const whatsappLink = safeBuildWhatsAppLink({
     phone: appointment.client.phone,
     clientName: appointment.client.name,
     serviceName: appointment.service.name,
@@ -160,7 +179,11 @@ router.patch('/:id/cancel', authenticate, async (req, res) => {
   const { id } = req.params;
   const appointment = await prisma.appointment.findUnique({
     where: { id },
-    include: { service: true, professional: true, client: true },
+    include: {
+      service: true,
+      professional: true,
+      client: { select: { id: true, name: true, email: true, phone: true } },
+    },
   });
 
   if (!appointment) return res.status(404).json({ error: 'Agendamento não encontrado.' });
@@ -186,7 +209,7 @@ router.patch('/:id/cancel', authenticate, async (req, res) => {
     type: 'cancelled',
   }).catch((err) => console.error('Falha ao enviar e-mail de cancelamento:', err.message));
 
-  const whatsappLink = buildWhatsAppLink({
+  const whatsappLink = safeBuildWhatsAppLink({
     phone: appointment.client.phone,
     clientName: appointment.client.name,
     serviceName: appointment.service.name,

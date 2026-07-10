@@ -9,6 +9,9 @@ const appointmentRoutes = require('./routes/appointments.routes');
 
 const app = express();
 
+// Em produção, defina FRONTEND_URL no .env para restringir o CORS ao domínio
+// do front-end publicado (ex: https://corte-certo.vercel.app). Sem essa
+// variável, aceita qualquer origem — cômodo em desenvolvimento local.
 const allowedOrigin = process.env.FRONTEND_URL || '*';
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());

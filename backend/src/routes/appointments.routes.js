@@ -2,7 +2,7 @@ const express = require('express');
 const { z } = require('zod');
 const prisma = require('../lib/prisma');
 const { authenticate, authorize } = require('../middleware/auth');
-const { checkConflict, generateAvailableSlots } = require('../utils/conflict');
+const { checkConflict, generateAvailableSlots, toMinutes, nowInBrazil } = require('../utils/conflict');
 const { sendAppointmentEmail, buildWhatsAppLink } = require('../lib/notifications');
 
 // Nunca deixa um problema ao montar o link de WhatsApp (ex: telefone em formato
@@ -41,6 +41,7 @@ router.get('/available-slots', async (req, res) => {
   const slots = generateAvailableSlots({
     durationMin: service.durationMin,
     existingAppointments,
+    date,
   });
 
   return res.json({ date, serviceId, professionalId, slots });
@@ -125,6 +126,14 @@ router.post('/', authenticate, async (req, res) => {
   const { hasConflict, endTime } = checkConflict(startTime, service.durationMin, existingAppointments);
   if (hasConflict) {
     return res.status(409).json({ error: 'Este horário acabou de ser reservado. Escolha outro.' });
+  }
+
+  // Mesma regra da listagem de horários disponíveis: não deixa reservar um
+  // horário que já passou (ou está prestes a começar), mesmo chamando a API
+  // diretamente sem passar pela tela de agendamento.
+  const { date: today, time: nowTime } = nowInBrazil();
+  if (date === today && toMinutes(startTime) < toMinutes(nowTime) + 30) {
+    return res.status(409).json({ error: 'Esse horário já passou. Escolha um horário futuro.' });
   }
 
   let appointment;

@@ -35,6 +35,16 @@ async function main() {
     });
   }
 
+  const professionals = [
+    { name: 'Carlos Mendes', role: 'Barbeiro' },
+    { name: 'Fernanda Lima', role: 'Especialista em barba' },
+  ];
+
+  for (const p of professionals) {
+    const exists = await prisma.professional.findFirst({ where: { name: p.name } });
+    if (!exists) await prisma.professional.create({ data: p });
+  }
+
   console.log('Seed concluído: admin@cortecerto.com / admin123');
 }
 

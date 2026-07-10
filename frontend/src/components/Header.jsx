@@ -14,19 +14,26 @@ export default function Header({ user, onLogout }) {
 
         <nav className="flex items-center gap-6 text-sm">
           {user?.role === 'ADMIN' && (
-            <Link to="/admin" className="text-cream/70 hover:text-brass-400 transition-colors">
-              Painel
+            <>
+              <Link to="/admin" className="text-cream/70 hover:text-brass-400 transition-colors">
+                Agenda
+              </Link>
+              <Link to="/admin/equipe" className="text-cream/70 hover:text-brass-400 transition-colors">
+                Equipe
+              </Link>
+            </>
+          )}
+          {user?.role === 'CLIENT' && (
+            <Link to="/minha-agenda" className="text-cream/70 hover:text-brass-400 transition-colors">
+              Meus horários
             </Link>
           )}
           {user ? (
             <>
-              <Link to="/minha-agenda" className="text-cream/70 hover:text-brass-400 transition-colors">
-                Meus horários
-              </Link>
               <button
                 onClick={() => {
                   onLogout();
-                  navigate('/');
+                  navigate('/entrar');
                 }}
                 className="text-cream/70 hover:text-brass-400 transition-colors"
               >

@@ -42,20 +42,30 @@ model Service {
   appointments Appointment[]
 }
 
-model Appointment {
-  id        String            @id @default(uuid())
-  client    User              @relation(fields: [clientId], references: [id])
-  clientId  String
-  service   Service           @relation(fields: [serviceId], references: [id])
-  serviceId String
-  date      DateTime          @db.Date   // dia do agendamento
-  startTime String            // "HH:mm", guardado como string para simplificar comparação de slots
-  endTime   String            // calculado a partir de startTime + duração do serviço
-  status    AppointmentStatus @default(CONFIRMED)
-  notes     String?
-  createdAt DateTime          @default(now())
+model Professional {
+  id           String        @id @default(uuid())
+  name         String
+  role         String?       // ex: "Barbeiro", "Especialista em barba"
+  active       Boolean       @default(true)
+  appointments Appointment[]
+}
 
-  // Nenhum outro agendamento pode ocupar o mesmo dia + horário de início,
-  // reforça a regra de negócio no nível do banco além da validação na API.
-  @@unique([date, startTime])
+model Appointment {
+  id             String            @id @default(uuid())
+  client         User              @relation(fields: [clientId], references: [id])
+  clientId       String
+  service        Service           @relation(fields: [serviceId], references: [id])
+  serviceId      String
+  professional   Professional      @relation(fields: [professionalId], references: [id])
+  professionalId String
+  date           DateTime          @db.Date   // dia do agendamento
+  startTime      String            // "HH:mm", guardado como string para simplificar comparação de slots
+  endTime        String            // calculado a partir de startTime + duração do serviço
+  status         AppointmentStatus @default(CONFIRMED)
+  notes          String?
+  createdAt      DateTime          @default(now())
+
+  // A checagem de conflito agora é por profissional: dois clientes podem ter
+  // o mesmo horário se forem atendidos por profissionais diferentes.
+  @@unique([professionalId, date, startTime])
 }

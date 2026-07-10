@@ -43,8 +43,15 @@ export default function MyAppointments() {
             >
               <div>
                 <p className="font-display text-lg text-cream">{appt.service.name}</p>
+                <p className="text-xs text-cream/40">com {appt.professional.name}</p>
                 <p className="text-sm text-cream/50">
-                  {new Date(appt.date).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                  {new Date(appt.date).toLocaleDateString('pt-BR', {
+                    weekday: 'long',
+                    day: '2-digit',
+                    month: 'long',
+                    timeZone: 'UTC', // a data vem do banco como meia-noite UTC; sem isso, o navegador
+                    // reconverte para o fuso local e pode mostrar o dia anterior.
+                  })}
                   {' às '}
                   {appt.startTime}
                 </p>

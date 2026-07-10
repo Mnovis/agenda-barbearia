@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, Link, Navigate } from 'react-router-dom';
+import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Login from './pages/Login';
 import Booking from './pages/Booking';
 import MyAppointments from './pages/MyAppointments';
 import AdminDashboard from './pages/AdminDashboard';
+import ManageProfessionals from './pages/ManageProfessionals';
 
 function Landing() {
   return (
@@ -27,9 +28,16 @@ function Landing() {
   );
 }
 
-function ProtectedRoute({ user, role, children }) {
-  if (!user) return <Navigate to="/entrar" replace />;
-  if (role && user.role !== role) return <Navigate to="/" replace />;
+function ProtectedRoute({ user, role, clientOnly, children }) {
+  const location = useLocation();
+
+  // Guarda para onde o usuário queria ir, para o Login redirecionar de volta
+  // depois de autenticar — sem isso, a escolha de serviço/dia/horário se perdia.
+  if (!user) return <Navigate to="/entrar" replace state={{ from: location }} />;
+  if (role && user.role !== role) return <Navigate to="/agendar" replace />;
+  // Páginas de cliente (landing, agendar, meus horários) não fazem sentido para
+  // o admin — ele não marca horário para si mesmo, ele gerencia a agenda.
+  if (clientOnly && user.role === 'ADMIN') return <Navigate to="/admin" replace />;
   return children;
 }
 
@@ -57,13 +65,27 @@ export default function App() {
     <div className="min-h-screen bg-charcoal-950">
       <Header user={user} onLogout={handleLogout} />
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute user={user} clientOnly>
+              <Landing />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/entrar" element={<Login onLogin={handleLogin} />} />
-        <Route path="/agendar" element={<Booking user={user} />} />
+        <Route
+          path="/agendar"
+          element={
+            <ProtectedRoute user={user} clientOnly>
+              <Booking user={user} />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/minha-agenda"
           element={
-            <ProtectedRoute user={user}>
+            <ProtectedRoute user={user} clientOnly>
               <MyAppointments />
             </ProtectedRoute>
           }
@@ -73,6 +95,14 @@ export default function App() {
           element={
             <ProtectedRoute user={user} role="ADMIN">
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/equipe"
+          element={
+            <ProtectedRoute user={user} role="ADMIN">
+              <ManageProfessionals />
             </ProtectedRoute>
           }
         />

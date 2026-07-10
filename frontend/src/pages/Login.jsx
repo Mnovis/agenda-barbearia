@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
 
 export default function Login({ onLogin }) {
@@ -8,6 +8,7 @@ export default function Login({ onLogin }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -21,7 +22,8 @@ export default function Login({ onLogin }) {
           : form;
       const { data } = await api.post(endpoint, payload);
       onLogin(data.user, data.token);
-      navigate('/agendar');
+      const fallback = data.user.role === 'ADMIN' ? '/admin' : '/agendar';
+      navigate(location.state?.from?.pathname || fallback, { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Algo deu errado. Tente novamente.');
     } finally {

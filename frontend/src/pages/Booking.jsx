@@ -16,12 +16,19 @@ function nextDays(count) {
 }
 
 function toISODate(d) {
-  return d.toISOString().split('T')[0];
+  // Usa os componentes de data LOCAIS, nunca toISOString() (que converte para UTC
+  // e pode "empurrar" a data para o dia seguinte dependendo do fuso e da hora).
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 export default function Booking({ user }) {
   const [services, setServices] = useState([]);
+  const [professionals, setProfessionals] = useState([]);
   const [selectedService, setSelectedService] = useState(null);
+  const [selectedProfessional, setSelectedProfessional] = useState(null);
   const [selectedDate, setSelectedDate] = useState(toISODate(new Date()));
   const [slots, setSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -34,19 +41,20 @@ export default function Booking({ user }) {
 
   useEffect(() => {
     api.get('/services').then((res) => setServices(res.data));
+    api.get('/professionals').then((res) => setProfessionals(res.data));
   }, []);
 
   useEffect(() => {
-    if (!selectedService) return;
+    if (!selectedService || !selectedProfessional) return;
     setSelectedSlot(null);
     setLoadingSlots(true);
     api
       .get('/appointments/available-slots', {
-        params: { date: selectedDate, serviceId: selectedService.id },
+        params: { date: selectedDate, serviceId: selectedService.id, professionalId: selectedProfessional.id },
       })
       .then((res) => setSlots(res.data.slots))
       .finally(() => setLoadingSlots(false));
-  }, [selectedService, selectedDate]);
+  }, [selectedService, selectedProfessional, selectedDate]);
 
   async function handleConfirm() {
     if (!user) {
@@ -56,16 +64,20 @@ export default function Booking({ user }) {
     setConfirming(true);
     setFeedback(null);
     try {
-      await api.post('/appointments', {
+      const { data } = await api.post('/appointments', {
         serviceId: selectedService.id,
+        professionalId: selectedProfessional.id,
         date: selectedDate,
         startTime: selectedSlot,
       });
-      setFeedback({ type: 'success', message: 'Horário confirmado! Te esperamos na barbearia.' });
+      setFeedback({
+        type: 'success',
+        message: 'Horário confirmado! Te esperamos na barbearia. Você vai receber um e-mail de confirmação.',
+      });
       setSelectedSlot(null);
       // Atualiza a lista de horários (o que acabou de ser reservado some da lista)
       const res = await api.get('/appointments/available-slots', {
-        params: { date: selectedDate, serviceId: selectedService.id },
+        params: { date: selectedDate, serviceId: selectedService.id, professionalId: selectedProfessional.id },
       });
       setSlots(res.data.slots);
     } catch (err) {
@@ -101,10 +113,33 @@ export default function Booking({ user }) {
         </div>
       </section>
 
-      {/* Passo 2: dia */}
+      {/* Passo 2: profissional */}
       {selectedService && (
         <section className="mb-10">
-          <h2 className="text-sm uppercase tracking-wider text-cream/40 mb-4">2. Dia</h2>
+          <h2 className="text-sm uppercase tracking-wider text-cream/40 mb-4">2. Profissional</h2>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {professionals.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedProfessional(p)}
+                className={`text-left rounded-2xl border p-5 transition-all duration-200 ${
+                  selectedProfessional?.id === p.id
+                    ? 'border-brass-500 bg-brass-500/10 shadow-[0_0_0_1px_rgba(193,147,78,0.4)]'
+                    : 'border-charcoal-700 bg-charcoal-900 hover:border-brass-600/60'
+                }`}
+              >
+                <h3 className="font-display text-lg text-cream">{p.name}</h3>
+                {p.role && <p className="text-sm text-cream/60 mt-1">{p.role}</p>}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Passo 3: dia */}
+      {selectedService && selectedProfessional && (
+        <section className="mb-10">
+          <h2 className="text-sm uppercase tracking-wider text-cream/40 mb-4">3. Dia</h2>
           <div className="flex gap-2 overflow-x-auto pb-2">
             {days.map((d) => {
               const iso = toISODate(d);
@@ -130,10 +165,10 @@ export default function Booking({ user }) {
         </section>
       )}
 
-      {/* Passo 3: horário */}
-      {selectedService && (
+      {/* Passo 4: horário */}
+      {selectedService && selectedProfessional && (
         <section className="mb-10">
-          <h2 className="text-sm uppercase tracking-wider text-cream/40 mb-4">3. Horário</h2>
+          <h2 className="text-sm uppercase tracking-wider text-cream/40 mb-4">4. Horário</h2>
           <TimeSlotPicker
             slots={slots}
             loading={loadingSlots}
@@ -144,14 +179,12 @@ export default function Booking({ user }) {
       )}
 
       {feedback && (
-        <p
-          className={`text-sm mb-4 ${feedback.type === 'success' ? 'text-green-400' : 'text-red-400'}`}
-        >
+        <p className={`text-sm mb-4 ${feedback.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
           {feedback.message}
         </p>
       )}
 
-      {selectedService && selectedSlot && (
+      {selectedService && selectedProfessional && selectedSlot && (
         <button
           onClick={handleConfirm}
           disabled={confirming}
@@ -159,7 +192,7 @@ export default function Booking({ user }) {
         >
           {confirming
             ? 'Confirmando...'
-            : `Confirmar ${selectedService.name} às ${selectedSlot}`}
+            : `Confirmar ${selectedService.name} com ${selectedProfessional.name} às ${selectedSlot}`}
         </button>
       )}
     </div>

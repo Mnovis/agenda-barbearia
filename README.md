@@ -10,17 +10,21 @@ em um painel dedicado.
 ## Funcionalidades
 
 **Área do cliente**
-- Cadastro e login com autenticação JWT
+- Cadastro e login obrigatórios com autenticação JWT — nenhuma tela é acessível sem login,
+  e o sistema redireciona de volta para onde o usuário estava indo assim que autentica
 - Listagem de serviços com duração e preço
+- Escolha do profissional que vai atender
 - Calendário dos próximos 10 dias
 - Grade de horários disponíveis, calculada dinamicamente a partir da duração do serviço
+  e da agenda **daquele profissional específico**
 - Confirmação de agendamento com validação de conflito em tempo real
+- Notificação por e-mail ao confirmar ou cancelar, e um botão de "Enviar por WhatsApp"
 - Histórico de agendamentos com opção de cancelamento
 
 **Painel do parceiro (admin)**
-- Agenda do dia com todos os agendamentos confirmados
+- Agenda do dia com todos os agendamentos confirmados, com filtro por profissional
 - Total de agendamentos e receita prevista do dia
-- Gestão de serviços (criar, editar, desativar)
+- Gestão de serviços e de profissionais (criar, editar, desativar)
 
 ## Por que este projeto é tecnicamente interessante
 
@@ -34,6 +38,17 @@ camadas:
 2. **No banco**, como rede de segurança: uma constraint `@@unique([date, startTime])` no Prisma
    garante que, mesmo em caso de duas requisições simultâneas passando pela validação da API ao
    mesmo tempo, o banco rejeita a segunda gravação.
+
+A checagem de conflito é **por profissional**: a constraint do banco é
+`@@unique([professionalId, date, startTime])`, não apenas `[date, startTime]`. Isso permite que dois
+profissionais atendam clientes diferentes no mesmo horário — sem essa mudança, o sistema recusaria
+agendamentos legítimos assim que a barbearia tivesse mais de um profissional trabalhando.
+
+As notificações (`backend/src/lib/notifications.js`) são desacopladas do provedor: e-mail usa
+Nodemailer, que em desenvolvimento (sem credenciais SMTP no `.env`) só imprime a mensagem no console,
+e em produção basta preencher `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS` para enviar de verdade. O WhatsApp
+usa link `wa.me` com mensagem pré-preenchida — a abordagem padrão para pequenos negócios, já que a
+API oficial do WhatsApp Business exige conta comercial aprovada.
 
 Outras decisões técnicas:
 - Preços armazenados em **centavos (inteiro)**, não float, para evitar erros de arredondamento.

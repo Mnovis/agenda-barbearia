@@ -9,7 +9,8 @@ const appointmentRoutes = require('./routes/appointments.routes');
 
 const app = express();
 
-app.use(cors());
+const allowedOrigin = process.env.FRONTEND_URL || '*';
+app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));

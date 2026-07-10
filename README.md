@@ -81,6 +81,18 @@ agenda-barbearia/
         └── api.js               # cliente Axios com interceptor de token
 ```
 
+## Fotos do projeto
+
+![Login](./image/Login.png)
+![Cadastro](./image/Cadastro.png)
+![Página Inicial](./image/Landing.png)
+![Agendamento](./image/Agendamento.png)
+![Confirmar Agendamento](./image/Confirmarção.png)
+![Meus Horários](./image/Horarios%20Cliente.png)
+![Agenda do dia](./image/Agenda%20do%20dia.png)
+![Painel de Funcionários](./image/Painel%20de%20Funcionarios.png)
+
+
 ---
 
 Desenvolvido por Mateus Novis Amolinário de Marins.

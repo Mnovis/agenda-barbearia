@@ -1,14 +1,16 @@
-const nodemailer = require('nodemailer');
-
 /**
  * Serviço de notificação.
  *
- * E-mail: usa Nodemailer. Em desenvolvimento, sem credenciais configuradas,
- * cai automaticamente no transporte "jsonTransport", que não envia nada de
- * verdade — só loga o conteúdo no console. Isso permite testar o fluxo
- * completo sem precisar de uma conta SMTP. Em produção, basta preencher
- * SMTP_HOST / SMTP_USER / SMTP_PASS no .env que o Nodemailer passa a enviar
- * de verdade (Gmail, SendGrid, Resend, etc. todos funcionam via SMTP).
+ * E-mail: enviado via API HTTPS da Brevo (https://api.brevo.com), não por SMTP.
+ * Isso é proposital — provedores de hospedagem como o Railway bloqueiam as
+ * portas SMTP (465/587/25) em planos gratuitos/hobby para evitar abuso, então
+ * qualquer solução baseada em SMTP (Gmail, etc.) trava com "Connection
+ * timeout" nesses planos. A API da Brevo usa HTTPS normal (porta 443), que
+ * nunca é bloqueada, e tem um plano gratuito de 300 e-mails/dia para sempre,
+ * sem precisar de domínio próprio (só verificar um e-mail remetente).
+ *
+ * Sem BREVO_API_KEY configurada, cai em modo de desenvolvimento: não envia
+ * nada de verdade, só imprime o conteúdo no console.
  *
  * WhatsApp: implementado via link "wa.me" com mensagem pré-preenchida.
  * É a abordagem padrão para pequenos negócios, já que a API oficial do
@@ -17,27 +19,6 @@ const nodemailer = require('nodemailer');
  * por WhatsApp" — o próprio dono ou o cliente clica e o app do WhatsApp
  * abre com a mensagem pronta.
  */
-
-function buildTransport() {
-  if (process.env.SMTP_HOST) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: false,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      // Timeouts de segurança: sem isso, se o provedor SMTP não responder
-      // (porta bloqueada pelo host, rede instável, etc.), a promise de envio
-      // fica pendurada para sempre e trava a requisição HTTP inteira.
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-    });
-  }
-  // Modo de desenvolvimento: não envia e-mail de verdade, só imprime no console.
-  return nodemailer.createTransport({ jsonTransport: true });
-}
-
-const transport = buildTransport();
 
 function formatDate(date) {
   return new Date(date).toLocaleDateString('pt-BR', {
@@ -59,17 +40,44 @@ async function sendAppointmentEmail({ to, clientName, serviceName, professionalN
       ? `Olá, ${clientName}. Vimos que seu agendamento de ${serviceName} com ${professionalName} em ${formatDate(date)} às ${startTime} foi cancelado. Quer marcar um novo horário? É só responder este e-mail ou acessar o site.`
       : `Olá, ${clientName}. Seu agendamento de ${serviceName} com ${professionalName} está confirmado para ${formatDate(date)} às ${startTime}. Te esperamos!`;
 
+  if (!process.env.BREVO_API_KEY) {
+    // Modo de desenvolvimento: sem chave configurada, só loga no console.
+    console.log(`[email:dev] Para: ${to} | Assunto: ${subject}\n${text}`);
+    return null;
+  }
+
   try {
-    const info = await transport.sendMail({
-      from: process.env.SMTP_FROM || 'Corte Certo <no-reply@cortecerto.com>',
-      to,
-      subject,
-      text,
+    // Timeout manual: sem isso, uma API fora do ar poderia travar a requisição
+    // indefinidamente (o fetch nativo não tem timeout embutido por padrão).
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'api-key': process.env.BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: {
+          name: process.env.BREVO_SENDER_NAME || 'Corte Certo',
+          email: process.env.BREVO_SENDER_EMAIL,
+        },
+        to: [{ email: to, name: clientName }],
+        subject,
+        textContent: text,
+      }),
+      signal: controller.signal,
     });
-    if (!process.env.SMTP_HOST) {
-      console.log(`[email:dev] Para: ${to} | Assunto: ${subject}\n${text}`);
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Brevo respondeu ${response.status}: ${body}`);
     }
-    return info;
+
+    return await response.json();
   } catch (err) {
     // Falha ao enviar e-mail nunca deve derrubar a criação/cancelamento do agendamento.
     console.error('Falha ao enviar e-mail de notificação:', err.message);
